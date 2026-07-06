@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import sys
 from functools import lru_cache
+from pathlib import Path
+from typing import Any, Literal
 
 import akshare as ak
-import pandas as pd
+
+InstrumentType = Literal["stock", "fund"]
+DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 
 
 def normalize_code(code: str) -> str:
@@ -18,35 +24,73 @@ def normalize_code(code: str) -> str:
     return cleaned.zfill(6)
 
 
+def _cache_enabled() -> bool:
+    return os.environ.get("CACHE_ONLY", "1").strip().lower() in {"1", "true", "yes"}
+
+
 @lru_cache(maxsize=1)
-def load_stock_table() -> pd.DataFrame:
+def load_stock_map() -> dict[str, str]:
+    cache_path = DATA_DIR / "stock_codes.json"
+    if cache_path.exists():
+        items = json.loads(cache_path.read_text(encoding="utf-8"))
+        return {item["code"]: item["name"] for item in items}
+    if _cache_enabled():
+        raise FileNotFoundError(
+            f"缺少缓存文件 {cache_path}，请在宿主机执行: DATA_DIR={DATA_DIR} python scripts/refresh_cache.py"
+        )
     df = ak.stock_info_a_code_name()
-    df = df.copy()
-    df["code"] = df["code"].astype(str).str.zfill(6)
-    return df
+    return {str(code).zfill(6): str(name) for code, name in zip(df["code"], df["name"])}
 
 
 @lru_cache(maxsize=1)
-def load_fund_table() -> pd.DataFrame:
+def load_fund_map() -> dict[str, dict[str, str]]:
+    cache_path = DATA_DIR / "fund_codes.json"
+    if cache_path.exists():
+        items = json.loads(cache_path.read_text(encoding="utf-8"))
+        return {item["code"]: item for item in items}
+    if _cache_enabled():
+        raise FileNotFoundError(
+            f"缺少缓存文件 {cache_path}，请在宿主机执行: DATA_DIR={DATA_DIR} python scripts/refresh_cache.py"
+        )
     df = ak.fund_name_em()
-    df = df.copy()
-    df["基金代码"] = df["基金代码"].astype(str).str.zfill(6)
-    return df
+    result: dict[str, dict[str, str]] = {}
+    for _, row in df.iterrows():
+        code = str(row["基金代码"]).zfill(6)
+        result[code] = {
+            "code": code,
+            "name": str(row["基金简称"]),
+            "fund_type": str(row["基金类型"]),
+            "pinyin_abbr": str(row["拼音缩写"]),
+            "pinyin_full": str(row["拼音全称"]),
+        }
+    return result
 
 
-def lookup(code: str, instrument_type: str) -> pd.DataFrame:
+def lookup_record(code: str, instrument_type: InstrumentType) -> dict[str, Any] | None:
+    """查询单条标的信息，返回统一 JSON 结构；未找到返回 None。"""
     normalized = normalize_code(code)
 
     if instrument_type == "stock":
-        df = load_stock_table()
-        result = df[df["code"] == normalized]
-    elif instrument_type == "fund":
-        df = load_fund_table()
-        result = df[df["基金代码"] == normalized]
-    else:
-        raise ValueError(f"不支持的类型: {instrument_type}")
+        name = load_stock_map().get(normalized)
+        if not name:
+            return None
+        return {
+            "code": normalized,
+            "name": name,
+            "type": "stock",
+        }
 
-    return result.reset_index(drop=True)
+    fund = load_fund_map().get(normalized)
+    if not fund:
+        return None
+    return {
+        "code": normalized,
+        "name": fund["name"],
+        "type": "fund",
+        "fund_type": fund.get("fund_type", ""),
+        "pinyin_abbr": fund.get("pinyin_abbr", ""),
+        "pinyin_full": fund.get("pinyin_full", ""),
+    }
 
 
 def main() -> int:
@@ -61,17 +105,18 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        result = lookup(args.code, args.type)
+        record = lookup_record(args.code, args.type)
     except Exception as exc:
         print(f"查询失败: {exc}", file=sys.stderr)
         return 1
 
-    if result.empty:
+    if record is None:
         type_label = "A 股" if args.type == "stock" else "基金"
         print(f"未找到 {type_label} 代码: {normalize_code(args.code)}", file=sys.stderr)
         return 1
 
-    print(result.to_string(index=False))
+    for key, value in record.items():
+        print(f"{key}: {value}")
     return 0
 
 
