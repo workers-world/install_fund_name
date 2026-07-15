@@ -2,7 +2,7 @@
 
 ## 概述
 
-本服务提供 HTTP 接口，根据 **A 股** 或 **公募基金** 代码查询标的基本信息。数据来源于 akshare（东方财富）。
+本服务提供 HTTP 接口，根据 **A 股** 或 **公募基金** 代码查询标的基本信息，并支持判断指定日期是否为 **A 股交易日**。数据来源于 akshare（东方财富 / 新浪财经）。
 
 | 项目 | 说明 |
 |------|------|
@@ -67,7 +67,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 |------|------|------|
 | `code` | int | 业务状态码，`0` 表示成功 |
 | `message` | string | 状态描述 |
-| `data` | object | 标的信息，结构见下文 |
+| `data` | object | 业务数据，结构见下文 |
 
 ### 错误响应结构
 
@@ -82,8 +82,8 @@ HTTP 状态码非 2xx 时，响应体为 FastAPI 标准错误格式：
 | HTTP 状态码 | 场景 |
 |-------------|------|
 | 404 | 代码不存在 |
-| 422 | 参数校验失败（如 type 非法） |
-| 502 | 上游数据源（akshare）异常 |
+| 422 | 参数校验失败（如 type 非法、日期格式非法） |
+| 502 | 上游数据源（akshare）异常或缺少本地缓存 |
 
 ### 标的类型 `type`
 
@@ -213,6 +213,68 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/instruments/lookup" \
 
 ---
 
+### 4. 判断是否为 A 股交易日
+
+```
+GET /api/v1/calendar/trading-day?date={date}
+```
+
+**查询参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `date` | string | 是 | 日期，格式 `YYYY-MM-DD` |
+
+**交易日示例**
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/calendar/trading-day?date=2026-07-15"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "date": "2026-07-15",
+    "is_trading_day": true
+  }
+}
+```
+
+**非交易日示例**（周末 / 节假日等仍返回 HTTP 200）
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/calendar/trading-day?date=2026-07-11"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "date": "2026-07-11",
+    "is_trading_day": false
+  }
+}
+```
+
+**日期格式非法**
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/calendar/trading-day?date=2026/07/15"
+```
+
+HTTP 422：
+
+```json
+{
+  "detail": "日期格式非法，需为 YYYY-MM-DD: 2026/07/15"
+}
+```
+
+---
+
 ## 响应字段说明
 
 ### A 股（`type=stock`）
@@ -234,17 +296,26 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/instruments/lookup" \
 | `pinyin_abbr` | string | 拼音缩写 |
 | `pinyin_full` | string | 拼音全称 |
 
+### 交易日（`/api/v1/calendar/trading-day`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `date` | string | 标准化后的日期 `YYYY-MM-DD` |
+| `is_trading_day` | bool | 是否为 A 股交易日 |
+
 ---
 
 ## 对接注意事项
 
 1. **首次查询较慢**：服务会从 akshare 拉取全量列表并缓存在内存中，同进程内后续查询会快很多。
 2. **代码类型需显式指定**：A 股与基金代码均为 6 位数字，无法自动区分，调用方须传正确的 `type`。
-3. **无鉴权**：当前版本未启用认证，部署到公网时请自行加网关或反向代理鉴权。
-4. **数据时效**：数据来自第三方公开接口，以 akshare 实际返回为准。
+3. **Docker 需先刷缓存**：容器默认 `CACHE_ONLY=1`，请在宿主机执行 `python scripts/refresh_cache.py`，生成 `stock_codes.json`、`fund_codes.json`、`trade_dates.json` 后再启动。
+4. **无鉴权**：当前版本未启用认证，部署到公网时请自行加网关或反向代理鉴权。
+5. **数据时效**：数据来自第三方公开接口，以 akshare 实际返回为准；交易日日历来自新浪财经，不在历史范围内的日期会判为非交易日。
 
 ## 变更记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.1.0 | 2026-07-15 | 新增 A 股交易日查询：`GET /api/v1/calendar/trading-day` |
 | 1.0.0 | 2026-07-06 | 初始版本：GET/POST 查询、健康检查 |

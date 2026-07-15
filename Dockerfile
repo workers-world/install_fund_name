@@ -15,7 +15,7 @@ RUN sed -i 's|deb.debian.org|mirrors.huaweicloud.com|g; s|security.debian.org|mi
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY lookup.py app.py ./
+COPY lookup.py app.py trade_calendar.py ./
 COPY scripts ./scripts
 RUN mkdir -p /app/data
 
