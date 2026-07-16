@@ -12,6 +12,7 @@ services:
       - ./data:/app/data
     # 容器内无法直连境内 HTTPS，需先在宿主机刷新缓存：
     #   source .venv/bin/activate && python scripts/refresh_cache.py
+    #   python scripts/refresh_fund_holdings.py 000001
     healthcheck:
       test:
         [

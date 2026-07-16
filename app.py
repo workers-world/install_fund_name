@@ -7,13 +7,18 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from holdings import (
+    FundNotFoundError,
+    HoldingsCacheNotFoundError,
+    fetch_top_holdings,
+)
 from lookup import InstrumentType, lookup_record, normalize_code
 from trade_calendar import is_trading_day, normalize_date
 
 app = FastAPI(
     title="标的代码查询服务",
-    description="根据 A 股或基金代码查询标的基本信息；支持 A 股交易日判断",
-    version="1.1.0",
+    description="根据 A 股或基金代码查询标的基本信息；支持基金重仓股与 A 股交易日判断",
+    version="1.4.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -80,6 +85,30 @@ def lookup_instrument(body: LookupRequest) -> ApiResponse:
             status_code=404,
             detail=f"未找到 {type_label} 代码: {normalize_code(body.code)}",
         )
+
+    return ApiResponse(code=0, message="success", data=record)
+
+
+@app.get(
+    "/api/v1/funds/{code}/holdings",
+    response_model=ApiResponse,
+    summary="查询基金前十大重仓股",
+)
+def get_fund_holdings(
+    code: str,
+    year: str | None = Query(
+        None,
+        description="报告年份，如 2024；默认自动尝试当前年与上一年",
+    ),
+) -> ApiResponse:
+    try:
+        record = fetch_top_holdings(code, year=year)
+    except FundNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HoldingsCacheNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"上游数据源异常: {exc}") from exc
 
     return ApiResponse(code=0, message="success", data=record)
 

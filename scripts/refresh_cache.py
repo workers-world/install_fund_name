@@ -46,20 +46,116 @@ def refresh_trade_dates(path: Path) -> int:
     return len(rows)
 
 
+def _nullable_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "nat"}:
+        return None
+    return text
+
+
+def _nullable_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:  # NaN
+        return None
+    return number
+
+
+def refresh_fund_purchase(path: Path) -> int:
+    df = ak.fund_purchase_em()
+    rows = []
+    for _, row in df.iterrows():
+        rows.append(
+            {
+                "code": str(row["基金代码"]).zfill(6),
+                "name": str(row["基金简称"]),
+                "purchase_status": _nullable_str(row.get("申购状态")),
+                "redeem_status": _nullable_str(row.get("赎回状态")),
+                "min_purchase": _nullable_float(row.get("购买起点")),
+                "daily_limit": _nullable_float(row.get("日累计限定金额")),
+                "fee": _nullable_float(row.get("手续费")),
+                "next_open_date": _nullable_str(row.get("下一开放日")),
+            }
+        )
+    path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    return len(rows)
+
+
+def _normalize_listing_code(raw: object) -> str:
+    text = str(raw).strip().lower()
+    if text.startswith(("sh", "sz")):
+        text = text[2:]
+    return text.zfill(6)
+
+
+def _fetch_listing_df(listing_type: str):
+    """优先东财行情，失败时回退新浪分类列表。"""
+    if listing_type == "ETF":
+        try:
+            return ak.fund_etf_spot_em()
+        except Exception:
+            return ak.fund_etf_category_sina(symbol="ETF基金")
+    try:
+        return ak.fund_lof_spot_em()
+    except Exception:
+        return ak.fund_etf_category_sina(symbol="LOF基金")
+
+
+def refresh_fund_listing(path: Path) -> int:
+    """缓存场内相关代码：ETF=场内，LOF=场内+场外；同时出现时优先 ETF。"""
+    by_code: dict[str, dict[str, str]] = {}
+
+    lof_df = _fetch_listing_df("LOF")
+    for _, row in lof_df.iterrows():
+        code = _normalize_listing_code(row["代码"])
+        by_code[code] = {
+            "code": code,
+            "name": str(row["名称"]),
+            "market": "场内+场外",
+            "listing_type": "LOF",
+        }
+
+    etf_df = _fetch_listing_df("ETF")
+    for _, row in etf_df.iterrows():
+        code = _normalize_listing_code(row["代码"])
+        by_code[code] = {
+            "code": code,
+            "name": str(row["名称"]),
+            "market": "场内",
+            "listing_type": "ETF",
+        }
+
+    rows = list(by_code.values())
+    path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    return len(rows)
+
+
 def main() -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     stock_path = DATA_DIR / "stock_codes.json"
     fund_path = DATA_DIR / "fund_codes.json"
+    fund_purchase_path = DATA_DIR / "fund_purchase.json"
+    fund_listing_path = DATA_DIR / "fund_listing.json"
     trade_dates_path = DATA_DIR / "trade_dates.json"
     try:
         stock_count = refresh_stock(stock_path)
         fund_count = refresh_fund(fund_path)
+        purchase_count = refresh_fund_purchase(fund_purchase_path)
+        listing_count = refresh_fund_listing(fund_listing_path)
         trade_count = refresh_trade_dates(trade_dates_path)
     except Exception as exc:
         print(f"刷新失败: {exc}", file=sys.stderr)
         return 1
     print(f"已写入 {stock_path} ({stock_count} 条)")
     print(f"已写入 {fund_path} ({fund_count} 条)")
+    print(f"已写入 {fund_purchase_path} ({purchase_count} 条)")
+    print(f"已写入 {fund_listing_path} ({listing_count} 条)")
     print(f"已写入 {trade_dates_path} ({trade_count} 条)")
     return 0
 

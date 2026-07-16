@@ -166,7 +166,35 @@ curl -s "http://127.0.0.1:8000/api/v1/instruments/010736?type=fund"
     "type": "fund",
     "fund_type": "指数型-股票",
     "pinyin_abbr": "YFDHS300ZSZQA",
-    "pinyin_full": "YIFANGDAHUSHEN300ZHISHUZENGQIANGA"
+    "pinyin_full": "YIFANGDAHUSHEN300ZHISHUZENGQIANGA",
+    "market": "场外",
+    "listing_type": null,
+    "purchase_status": "开放申购",
+    "redeem_status": "开放赎回",
+    "min_purchase": 10,
+    "daily_limit": 100000000000.0,
+    "fee": 0.15,
+    "next_open_date": null
+  }
+}
+```
+
+**场内 ETF 示例**
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/instruments/510300?type=fund"
+```
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "code": "510300",
+    "name": "华泰柏瑞沪深300ETF",
+    "type": "fund",
+    "market": "场内",
+    "listing_type": "ETF"
   }
 }
 ```
@@ -213,7 +241,68 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/instruments/lookup" \
 
 ---
 
-### 4. 判断是否为 A 股交易日
+### 4. 查询基金前十大重仓股
+
+```
+GET /api/v1/funds/{code}/holdings?year={year}
+```
+
+**路径参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `code` | string | 是 | 基金代码 |
+
+**查询参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `year` | string | 否 | 报告年份，如 `2024`；默认自动尝试当前年与上一年 |
+
+**请求示例**
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/funds/000001/holdings"
+```
+
+**成功响应示例**
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "code": "000001",
+    "year": "2024",
+    "report_period": "2024年4季度股票投资明细",
+    "holdings": [
+      {
+        "rank": 1,
+        "stock_code": "600519",
+        "stock_name": "贵州茅台",
+        "weight": 8.5,
+        "shares": 12.3,
+        "market_value": 15000.0
+      }
+    ]
+  }
+}
+```
+
+**无股票持仓**（货币型、纯债等）：HTTP 200，`holdings` 为空数组。
+
+**未刷持仓缓存**（Docker `CACHE_ONLY=1`）：HTTP 404，提示执行 `python scripts/refresh_fund_holdings.py {code}`。
+
+宿主机刷持仓缓存：
+
+```bash
+source .venv/bin/activate
+python scripts/refresh_fund_holdings.py 000001 010736
+```
+
+---
+
+### 5. 判断是否为 A 股交易日
 
 ```
 GET /api/v1/calendar/trading-day?date={date}
@@ -295,6 +384,40 @@ HTTP 422：
 | `fund_type` | string | 基金类型，如「混合型」 |
 | `pinyin_abbr` | string | 拼音缩写 |
 | `pinyin_full` | string | 拼音全称 |
+| `market` | string | 交易渠道：`场内` / `场外` / `场内+场外` |
+| `listing_type` | string \| null | 场内品种：`ETF` / `LOF`；场外为 `null` |
+| `purchase_status` | string \| null | 申购状态，如「开放申购」「暂停申购」「限大额」 |
+| `redeem_status` | string \| null | 赎回状态，如「开放赎回」「暂停赎回」 |
+| `min_purchase` | number \| null | 购买起点（元） |
+| `daily_limit` | number \| null | 日累计限定金额（元） |
+| `fee` | number \| null | 手续费（单位：%） |
+| `next_open_date` | string \| null | 下一开放日（若有） |
+
+业务判断建议：`purchase_status == "开放申购"` 表示可申购；含「暂停」为暂停申购；「限大额」时需结合 `daily_limit`。若名称表有该基金但申购表无，相关字段为 `null`。
+
+`market` / `listing_type` 判定：代码在 ETF 行情列表为 `场内`+`ETF`；在 LOF 列表为 `场内+场外`+`LOF`；其余为 `场外`（`listing_type=null`）。同时出现在两表时优先 ETF。数据优先东财 `fund_etf_spot_em` / `fund_lof_spot_em`，失败时回退新浪 `fund_etf_category_sina`。
+
+### 基金重仓股（`/api/v1/funds/{code}/holdings`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | string | 6 位基金代码 |
+| `year` | string | 数据来源年份 |
+| `report_period` | string \| null | 报告期，如「2024年4季度股票投资明细」 |
+| `holdings` | array | 前十大重仓股列表 |
+
+`holdings` 单项：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `rank` | int | 排名（1–10） |
+| `stock_code` | string | 股票代码 |
+| `stock_name` | string | 股票名称 |
+| `weight` | number \| null | 占净值比例（%） |
+| `shares` | number \| null | 持股数（万股） |
+| `market_value` | number \| null | 持仓市值（万元） |
+
+数据为季报披露，非实时；仅股票持仓前十，不含债券持仓。
 
 ### 交易日（`/api/v1/calendar/trading-day`）
 
@@ -309,13 +432,16 @@ HTTP 422：
 
 1. **首次查询较慢**：服务会从 akshare 拉取全量列表并缓存在内存中，同进程内后续查询会快很多。
 2. **代码类型需显式指定**：A 股与基金代码均为 6 位数字，无法自动区分，调用方须传正确的 `type`。
-3. **Docker 需先刷缓存**：容器默认 `CACHE_ONLY=1`，请在宿主机执行 `python scripts/refresh_cache.py`，生成 `stock_codes.json`、`fund_codes.json`、`trade_dates.json` 后再启动。
+3. **Docker 需先刷缓存**：容器默认 `CACHE_ONLY=1`，请在宿主机执行 `python scripts/refresh_cache.py`，生成 `stock_codes.json`、`fund_codes.json`、`fund_purchase.json`、`fund_listing.json`、`trade_dates.json` 后再启动。基金重仓股需按代码单独执行 `python scripts/refresh_fund_holdings.py {code}`，写入 `data/fund_holdings/`。
 4. **无鉴权**：当前版本未启用认证，部署到公网时请自行加网关或反向代理鉴权。
-5. **数据时效**：数据来自第三方公开接口，以 akshare 实际返回为准；交易日日历来自新浪财经，不在历史范围内的日期会判为非交易日。
+5. **数据时效**：数据来自第三方公开接口，以 akshare 实际返回为准；交易日日历来自新浪财经，不在历史范围内的日期会判为非交易日；申购状态为天天基金网当日快照；场内/场外依据东财 ETF/LOF 行情列表；重仓股为季报披露数据。
 
 ## 变更记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.4.0 | 2026-07-16 | 新增基金前十大重仓股：`GET /api/v1/funds/{code}/holdings` |
+| 1.3.0 | 2026-07-16 | 基金查询增加场内/场外标识（`market` / `listing_type`） |
+| 1.2.0 | 2026-07-16 | 基金查询增加申购/赎回状态等字段（`fund_purchase_em`） |
 | 1.1.0 | 2026-07-15 | 新增 A 股交易日查询：`GET /api/v1/calendar/trading-day` |
 | 1.0.0 | 2026-07-06 | 初始版本：GET/POST 查询、健康检查 |

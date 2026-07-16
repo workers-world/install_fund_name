@@ -1,4 +1,6 @@
 .venv/
 __pycache__/
 .idea/
+.DS_Store
 data/*.json
+data/fund_holdings/
