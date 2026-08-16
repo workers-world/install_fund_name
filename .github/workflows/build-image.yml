@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/ongoing-z/install_fund_name
+  IMAGE: ghcr.io/workers-world/install_fund_name
 
 jobs:
   build-and-push:
