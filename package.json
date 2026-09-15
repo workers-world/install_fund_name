@@ -1,0 +1,10 @@
+{
+  "name": "install_fund_name",
+  "private": true,
+  "version": "0.4.0",
+  "description": "A-share / fund code lookup HTTP service (akshare + FastAPI)",
+  "scripts": {
+    "check": "python3 -m py_compile app.py lookup.py holdings.py trade_calendar.py scripts/refresh_cache.py scripts/refresh_fund_holdings.py",
+    "test": "echo no-op"
+  }
+}

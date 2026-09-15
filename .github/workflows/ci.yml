@@ -1,0 +1,34 @@
+# Release PR CI：push dev_* → verify + 开 PR；PR → master 门禁后 auto-merge。
+# 公开仓须走公开 worker-actions（勿 uses 私有 workers-world/.github）。
+# workers-world actions bundle: actions/v0.1.3（禁止 @master）
+# 前置：Org Secret GHA_TOKEN，caller secrets: inherit
+# sync-default-branch.yml 为独立 workflow，勿并入本文件
+name: CI
+
+on:
+  push:
+    branches: ["dev_*"]
+  pull_request:
+    branches: ["master"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-pr:
+    permissions:
+      contents: write
+      packages: read
+      pull-requests: write
+      issues: write
+      actions: write
+      checks: read
+    uses: workers-world/worker-actions/.github/workflows/worker-ci.yml@actions/v0.1.3
+    secrets: inherit
+    with:
+      # 纯 Python 镜像仓：无 framework_sdk / 无 npm test / 不刷 lock
+      materialize_sdk: false
+      run_tests: false
+      sync_packages_lock: false
