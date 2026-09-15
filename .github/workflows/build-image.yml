@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/ongoing-z/install_fund_name
+  # 与仓归属一致；下游 fund-info-worker FROM 此路径
+  IMAGE: ghcr.io/workers-world/install_fund_name
 
 jobs:
   build-and-push:
