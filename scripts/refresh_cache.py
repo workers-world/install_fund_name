@@ -137,26 +137,40 @@ def refresh_fund_listing(path: Path) -> int:
 
 
 def main() -> int:
+    import traceback
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     stock_path = DATA_DIR / "stock_codes.json"
     fund_path = DATA_DIR / "fund_codes.json"
     fund_purchase_path = DATA_DIR / "fund_purchase.json"
     fund_listing_path = DATA_DIR / "fund_listing.json"
     trade_dates_path = DATA_DIR / "trade_dates.json"
-    try:
-        stock_count = refresh_stock(stock_path)
-        fund_count = refresh_fund(fund_path)
-        purchase_count = refresh_fund_purchase(fund_purchase_path)
-        listing_count = refresh_fund_listing(fund_listing_path)
-        trade_count = refresh_trade_dates(trade_dates_path)
-    except Exception as exc:
-        print(f"刷新失败: {exc}", file=sys.stderr)
-        return 1
-    print(f"已写入 {stock_path} ({stock_count} 条)")
-    print(f"已写入 {fund_path} ({fund_count} 条)")
-    print(f"已写入 {fund_purchase_path} ({purchase_count} 条)")
-    print(f"已写入 {fund_listing_path} ({listing_count} 条)")
-    print(f"已写入 {trade_dates_path} ({trade_count} 条)")
+
+    steps = [
+        ("stock_codes", refresh_stock, stock_path),
+        ("fund_codes", refresh_fund, fund_path),
+        ("fund_purchase", refresh_fund_purchase, fund_purchase_path),
+        ("fund_listing", refresh_fund_listing, fund_listing_path),
+        ("trade_dates", refresh_trade_dates, trade_dates_path),
+    ]
+    counts: dict[str, int] = {}
+    for name, fn, path in steps:
+        try:
+            print(f"[refresh] 开始: {name}", flush=True)
+            counts[name] = fn(path)
+            print(f"[refresh] 完成: {name} -> {path} ({counts[name]} 条)", flush=True)
+        except Exception as exc:
+            print(f"[refresh] 失败步骤: {name}", file=sys.stderr, flush=True)
+            print(f"[refresh] 异常类型: {type(exc).__name__}", file=sys.stderr, flush=True)
+            print(f"[refresh] 异常信息: {exc!r}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return 1
+
+    print(f"已写入 {stock_path} ({counts['stock_codes']} 条)")
+    print(f"已写入 {fund_path} ({counts['fund_codes']} 条)")
+    print(f"已写入 {fund_purchase_path} ({counts['fund_purchase']} 条)")
+    print(f"已写入 {fund_listing_path} ({counts['fund_listing']} 条)")
+    print(f"已写入 {trade_dates_path} ({counts['trade_dates']} 条)")
     return 0
 
 
