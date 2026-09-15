@@ -44,3 +44,25 @@ def is_trading_day(date_str: str) -> dict[str, Any]:
         "date": normalized,
         "is_trading_day": normalized in load_trade_dates(),
     }
+
+
+def list_trading_days(start: str, end: str) -> dict[str, Any]:
+    """返回 [start, end] 闭区间内的交易日列表（含边界）。"""
+    start_d = date.fromisoformat(normalize_date(start))
+    end_d = date.fromisoformat(normalize_date(end))
+    if end_d < start_d:
+        raise ValueError(f"end 早于 start: {start} > {end}")
+    trade = load_trade_dates()
+    days: list[str] = []
+    cur = start_d
+    while cur <= end_d:
+        iso = cur.isoformat()
+        if iso in trade:
+            days.append(iso)
+        cur = date.fromordinal(cur.toordinal() + 1)
+    return {
+        "start": start_d.isoformat(),
+        "end": end_d.isoformat(),
+        "count": len(days),
+        "trading_days": days,
+    }

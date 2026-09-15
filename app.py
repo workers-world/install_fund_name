@@ -13,7 +13,7 @@ from holdings import (
     fetch_top_holdings,
 )
 from lookup import InstrumentType, lookup_record, normalize_code
-from trade_calendar import is_trading_day, normalize_date
+from trade_calendar import is_trading_day, list_trading_days, normalize_date
 
 app = FastAPI(
     title="标的代码查询服务",
@@ -131,6 +131,25 @@ def get_trading_day(
 
     try:
         record = is_trading_day(date)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"上游数据源异常: {exc}") from exc
+
+    return ApiResponse(code=0, message="success", data=record)
+
+
+@app.get(
+    "/api/v1/calendar/trading-days",
+    response_model=ApiResponse,
+    summary="查询日期区间内的 A 股交易日列表",
+)
+def get_trading_days(
+    start: str = Query(..., description="起始日期 YYYY-MM-DD（含）"),
+    end: str = Query(..., description="结束日期 YYYY-MM-DD（含）"),
+) -> ApiResponse:
+    try:
+        record = list_trading_days(start, end)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"上游数据源异常: {exc}") from exc
 
