@@ -2,7 +2,7 @@ name: Build and Push Image
 
 on:
   push:
-    branches: [dev_00_04_00, master]
+    branches: [master]
   schedule:
     # 每周日 UTC 13:00（北京周日 21:00），早于 fund-info-worker 的 14:00
     - cron: "0 13 * * 0"
