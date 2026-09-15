@@ -25,7 +25,7 @@ jobs:
         run: docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        run: docker build -t $IMAGE:latest .
+        run: docker build -t "$IMAGE:latest" .
 
       - name: Push image
-        run: docker push $IMAGE:latest
+        run: docker push "$IMAGE:latest"
