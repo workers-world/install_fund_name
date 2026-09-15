@@ -1,0 +1,24 @@
+name: Sync default branch
+
+# 独立 workflow：与 CI 无依赖。
+# workers-world actions bundle: actions/v0.4.36（禁止 @master）
+# 写操作仅走 WORKERS_WORLD_GHA_TOKEN（PAT）；GITHUB_TOKEN 无权限（least-privilege）。
+# 前置：Org Secret WORKERS_WORLD_GHA_TOKEN，secrets: inherit
+on:
+  push:
+    branches: ["dev_*"]
+
+permissions: {}
+
+concurrency:
+  group: sync-default-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    # 显式收紧 GITHUB_TOKEN（勿 contents: write）；PATCH default_branch 走 PAT
+    permissions: {}
+    uses: workers-world/.github/.github/workflows/worker-sync-default-dev-branch.yml@actions/v0.4.36
+    secrets: inherit
+    with:
+      push_branch: ${{ github.ref_name }}
