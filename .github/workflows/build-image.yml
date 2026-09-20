@@ -2,13 +2,14 @@ name: Build and Push Image
 
 on:
   push:
-    branches: [dev_00_04_00, master]
+    branches: [master]
   schedule:
     # 每周日 UTC 13:00（北京周日 21:00），早于 fund-info-worker 的 14:00
     - cron: "0 13 * * 0"
   workflow_dispatch:
 
 env:
+  # 与仓归属一致；下游 fund-info-worker FROM 此路径
   IMAGE: ghcr.io/workers-world/install_fund_name
 
 jobs:
@@ -18,13 +19,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         run: docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        run: docker build -t $IMAGE:latest .
+        run: docker build -t "$IMAGE:latest" .
 
       - name: Push image
-        run: docker push $IMAGE:latest
+        run: docker push "$IMAGE:latest"
