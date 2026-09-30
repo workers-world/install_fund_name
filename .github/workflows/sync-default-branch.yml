@@ -16,7 +16,7 @@ concurrency:
 jobs:
   sync:
     permissions: {}
-    uses: workers-world/worker-actions/.github/workflows/worker-sync-default-dev-branch.yml@actions/v0.2.3
+    uses: workers-world/worker-actions/.github/workflows/worker-sync-default-dev-branch.yml@actions/v0.2.6
     secrets: inherit
     with:
       push_branch: ${{ github.ref_name }}
