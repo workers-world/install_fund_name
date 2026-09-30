@@ -1,6 +1,6 @@
 # 独立 workflow：与 CI 解耦。公开仓须走公开 worker-actions。
 # pin actions/v0.1.2（与 CI 同 bundle）
-# 前置：Org Secret GHA_TOKEN，secrets: inherit
+# 前置：Org Secret GHA_TOKEN 等，caller 显式 secrets 映射
 name: Sync default branch
 
 on:
@@ -17,6 +17,9 @@ jobs:
   sync:
     permissions: {}
     uses: workers-world/worker-actions/.github/workflows/worker-sync-default-dev-branch.yml@actions/v0.2.6
-    secrets: inherit
+    secrets:
+      GHA_TOKEN: ${{ secrets.GHA_TOKEN }}
+      DEFAULT_BRANCH_BOT_PRIVATE_KEY: ${{ secrets.DEFAULT_BRANCH_BOT_PRIVATE_KEY }}
+      DEFAULT_BRANCH_BOT_APP_ID: ${{ secrets.DEFAULT_BRANCH_BOT_APP_ID }}
     with:
       push_branch: ${{ github.ref_name }}
