@@ -1,5 +1,6 @@
 name: Build and Push Image
 
+# 仅 master 推 GHCR（与 container-actions 约定一致）
 on:
   push:
     branches: [master]
@@ -8,27 +9,15 @@ on:
     - cron: "0 13 * * 0"
   workflow_dispatch:
 
-env:
-  # 与仓归属一致；下游 fund-info-worker FROM 此路径
-  IMAGE: ghcr.io/workers-world/install_fund_name
-
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build-push:
     permissions:
       contents: read
       packages: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Log in to GHCR
-        env:
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: docker login ghcr.io -u "$GHCR_USERNAME" -p "$GHCR_TOKEN"
-
-      - name: Build image
-        run: docker build -t "$IMAGE:latest" .
-
-      - name: Push image
-        run: docker push "$IMAGE:latest"
+    uses: workers-world/container-actions/.github/workflows/container-build-push.yml@actions/v0.1.0
+    secrets:
+      DISPATCH_TOKEN: ${{ secrets.GHA_TOKEN }}
+    with:
+      image: ghcr.io/workers-world/install_fund_name
+      # fund-info 用 refresh-and-deploy cron，暂不强制 dispatch
+      emit_dispatch: false
