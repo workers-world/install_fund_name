@@ -22,7 +22,7 @@ jobs:
       issues: write
       actions: write
       checks: read
-    uses: workers-world/worker-actions/.github/workflows/worker-ci.yml@actions/v0.2.26
+    uses: workers-world/worker-actions/.github/workflows/worker-ci.yml@actions/v0.2.29
     secrets:
       GHA_TOKEN: ${{ secrets.GHA_TOKEN }}
       RELEASE_BOT_PRIVATE_KEY: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
@@ -42,6 +42,6 @@ jobs:
   docker-smoke:
     permissions:
       contents: read
-    uses: workers-world/container-actions/.github/workflows/container-ci.yml@actions/v0.1.0
+    uses: workers-world/container-actions/.github/workflows/container-ci.yml@actions/v0.2.29
     with:
       image: ghcr.io/workers-world/install_fund_name
