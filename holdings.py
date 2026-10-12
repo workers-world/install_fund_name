@@ -24,6 +24,15 @@ class HoldingsCacheNotFoundError(FileNotFoundError):
     """持仓缓存文件不存在。"""
 
 
+def _holdings_live_on_miss() -> bool:
+    """CACHE_ONLY 下 cache miss 时是否允许调 akshare 并写盘（fund-info 生产开）。"""
+    return os.environ.get("HOLDINGS_LIVE_ON_MISS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _holdings_cache_path(code: str) -> Path:
     return HOLDINGS_DIR / f"{normalize_code(code)}.json"
 
@@ -120,19 +129,27 @@ def _write_holdings_cache(data: dict[str, Any]) -> None:
 
 
 def fetch_top_holdings(code: str, year: str | None = None) -> dict[str, Any]:
-    """查询基金最新报告期前十大重仓股；CACHE_ONLY 时只读本地缓存。"""
+    """查询基金最新报告期前十大重仓股。
+
+    - CACHE_ONLY=0：始终 live 拉取并写缓存。
+    - CACHE_ONLY=1 且缓存命中：只读本地文件。
+    - CACHE_ONLY=1 且 miss：默认 404（HoldingsCacheNotFoundError）；
+      若 HOLDINGS_LIVE_ON_MISS=1 则 live 拉取、写盘后返回。
+    """
     normalized = normalize_code(code)
     if normalized not in load_fund_map():
         raise FundNotFoundError(f"未找到基金代码: {normalized}")
 
     if _cache_enabled():
         cache_path = _holdings_cache_path(normalized)
-        if not cache_path.exists():
+        if cache_path.exists():
+            return json.loads(cache_path.read_text(encoding="utf-8"))
+        if not _holdings_live_on_miss():
             raise HoldingsCacheNotFoundError(
                 f"缺少持仓缓存 {cache_path}，请在宿主机执行: "
                 f"DATA_DIR={DATA_DIR} python scripts/refresh_fund_holdings.py {normalized}"
             )
-        return json.loads(cache_path.read_text(encoding="utf-8"))
+        # HOLDINGS_LIVE_ON_MISS：按需拉 akshare 并落盘，供同容器后续命中
 
     data = _fetch_live_holdings(normalized, year)
     _write_holdings_cache(data)
