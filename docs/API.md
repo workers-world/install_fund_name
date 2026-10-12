@@ -291,7 +291,16 @@ curl -s "http://127.0.0.1:8000/api/v1/funds/000001/holdings"
 
 **无股票持仓**（货币型、纯债等）：HTTP 200，`holdings` 为空数组。
 
-**未刷持仓缓存**（Docker `CACHE_ONLY=1`）：HTTP 404，提示执行 `python scripts/refresh_fund_holdings.py {code}`。
+**未刷持仓缓存**（Docker `CACHE_ONLY=1` 且未开 `HOLDINGS_LIVE_ON_MISS`）：HTTP 404，提示执行 `python scripts/refresh_fund_holdings.py {code}`。
+
+**环境变量**
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `CACHE_ONLY` | `1` | `1` 时基础表与重仓优先读 `data/`；禁止为补基础表在容器内全量拉 akshare |
+| `HOLDINGS_LIVE_ON_MISS` | `0` | 仅影响重仓：`CACHE_ONLY=1` 且 `data/fund_holdings/{code}.json` 缺失时，设为 `1` 则调 akshare 拉取并写盘后返回 200；未开则 404 |
+
+fund-info 生产镜像设 `HOLDINGS_LIVE_ON_MISS=1`，并在周更 CI 预热常用基金池。
 
 宿主机刷持仓缓存：
 
@@ -432,7 +441,7 @@ HTTP 422：
 
 1. **首次查询较慢**：服务会从 akshare 拉取全量列表并缓存在内存中，同进程内后续查询会快很多。
 2. **代码类型需显式指定**：A 股与基金代码均为 6 位数字，无法自动区分，调用方须传正确的 `type`。
-3. **Docker 需先刷缓存**：容器默认 `CACHE_ONLY=1`，请在宿主机执行 `python scripts/refresh_cache.py`，生成 `stock_codes.json`、`fund_codes.json`、`fund_purchase.json`、`fund_listing.json`、`trade_dates.json` 后再启动。基金重仓股需按代码单独执行 `python scripts/refresh_fund_holdings.py {code}`，写入 `data/fund_holdings/`。
+3. **Docker 需先刷缓存**：容器默认 `CACHE_ONLY=1`，请在宿主机执行 `python scripts/refresh_cache.py`，生成 `stock_codes.json`、`fund_codes.json`、`fund_purchase.json`、`fund_listing.json`、`trade_dates.json` 后再启动。基金重仓股需按代码单独执行 `python scripts/refresh_fund_holdings.py {code}`，写入 `data/fund_holdings/`。若设 `HOLDINGS_LIVE_ON_MISS=1`，未预热的代码在首次查询时可按需拉取并落盘（仍建议 CI 预热主力池）。
 4. **无鉴权**：当前版本未启用认证，部署到公网时请自行加网关或反向代理鉴权。
 5. **数据时效**：数据来自第三方公开接口，以 akshare 实际返回为准；交易日日历来自新浪财经，不在历史范围内的日期会判为非交易日；申购状态为天天基金网当日快照；场内/场外依据东财 ETF/LOF 行情列表；重仓股为季报披露数据。
 
@@ -440,6 +449,7 @@ HTTP 422：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.5.0 | 2026-10-12 | 重仓支持 `HOLDINGS_LIVE_ON_MISS`：CACHE_ONLY 下 miss 可按需 akshare 写盘 |
 | 1.4.0 | 2026-07-16 | 新增基金前十大重仓股：`GET /api/v1/funds/{code}/holdings` |
 | 1.3.0 | 2026-07-16 | 基金查询增加场内/场外标识（`market` / `listing_type`） |
 | 1.2.0 | 2026-07-16 | 基金查询增加申购/赎回状态等字段（`fund_purchase_em`） |
