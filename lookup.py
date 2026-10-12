@@ -174,17 +174,23 @@ def load_fund_listing_map() -> dict[str, dict[str, Any]]:
 
 
 def lookup_record(code: str, instrument_type: InstrumentType) -> dict[str, Any] | None:
-    """查询单条标的信息，返回统一 JSON 结构；未找到返回 None。"""
+    """查询单条标的信息，返回统一 JSON 结构；未找到返回 None。
+
+    扁平字段保持向后兼容；另附 ``sources`` 为各缓存源的完整条目（不裁剪），
+    便于下游 Admin「原始信息」与扩展字段发现。
+    """
     normalized = normalize_code(code)
 
     if instrument_type == "stock":
         name = load_stock_map().get(normalized)
         if not name:
             return None
+        stock_row: dict[str, Any] = {"code": normalized, "name": name}
         return {
             "code": normalized,
             "name": name,
             "type": "stock",
+            "sources": {"stock": stock_row},
         }
 
     fund = load_fund_map().get(normalized)
@@ -193,6 +199,7 @@ def lookup_record(code: str, instrument_type: InstrumentType) -> dict[str, Any] 
 
     purchase = load_fund_purchase_map().get(normalized)
     listing = load_fund_listing_map().get(normalized)
+    # 扁平字段：常用摘要；sources：缓存原文全量（含未来新增列）
     return {
         "code": normalized,
         "name": fund["name"],
@@ -208,6 +215,11 @@ def lookup_record(code: str, instrument_type: InstrumentType) -> dict[str, Any] 
         "daily_limit": purchase.get("daily_limit") if purchase else None,
         "fee": purchase.get("fee") if purchase else None,
         "next_open_date": purchase.get("next_open_date") if purchase else None,
+        "sources": {
+            "fund": dict(fund),
+            "purchase": dict(purchase) if purchase else None,
+            "listing": dict(listing) if listing else None,
+        },
     }
 
 
