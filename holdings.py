@@ -24,6 +24,10 @@ class HoldingsCacheNotFoundError(FileNotFoundError):
     """持仓缓存文件不存在。"""
 
 
+class InvalidHoldingsPathError(ValueError):
+    """持仓缓存路径非法（无法约束在 fund_holdings 目录内）。"""
+
+
 def _holdings_live_on_miss() -> bool:
     """CACHE_ONLY 下 cache miss 时是否允许调 akshare 并写盘（fund-info 生产开）。"""
     return os.environ.get("HOLDINGS_LIVE_ON_MISS", "0").strip().lower() in {
@@ -33,8 +37,23 @@ def _holdings_live_on_miss() -> bool:
     }
 
 
+def _holdings_cache_filename(code: str) -> str:
+    """单段文件名，拒绝路径分隔符与 ``..`` 组件。"""
+    filename = f"{normalize_code(code)}.json"
+    if filename != Path(filename).name:
+        raise InvalidHoldingsPathError(f"非法持仓缓存文件名: {filename!r}")
+    return filename
+
+
 def _holdings_cache_path(code: str) -> Path:
-    return HOLDINGS_DIR / f"{normalize_code(code)}.json"
+    """解析为规范路径，并约束在 ``HOLDINGS_DIR`` 下（防 path traversal）。"""
+    base = HOLDINGS_DIR.resolve()
+    candidate = (HOLDINGS_DIR / _holdings_cache_filename(code)).resolve()
+    if not candidate.is_relative_to(base):
+        raise InvalidHoldingsPathError(
+            f"持仓缓存路径越界: {candidate} 不在 {base} 下"
+        )
+    return candidate
 
 
 def _parse_quarter_key(period: str) -> tuple[int, int]:
