@@ -311,6 +311,22 @@ python scripts/refresh_fund_holdings.py 000001 010736
 
 ---
 
+### 4.1 查询基金单位净值历史
+
+```
+GET /api/v1/funds/{code}/nav-history?range={range}
+```
+
+开放式基金「单位净值走势」。`range` 为 `1m`、`3m`、`6m`、`1y`、`ytd`，默认 `1y`。区间按上海日历截取；涨跌幅相对区间内第一个净值点。进程内缓存 15 分钟。代码须为 6 位数字。
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/funds/015692/nav-history?range=1y"
+```
+
+成功时 `data` 含 `code`、`range`、`points`（`date` / `value`）、`summary`（`startDate`、`startValue`、`endDate`、`endValue`、`changePct`）。非法代码或区间 HTTP 422；没有净值点 HTTP 404；上游异常 HTTP 502。
+
+---
+
 ### 5. 判断是否为 A 股交易日
 
 ```
@@ -449,6 +465,7 @@ HTTP 422：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.6.0 | 2026-10-19 | 新增基金单位净值历史：`GET /api/v1/funds/{code}/nav-history` |
 | 1.5.0 | 2026-10-12 | 重仓支持 `HOLDINGS_LIVE_ON_MISS`：CACHE_ONLY 下 miss 可按需 akshare 写盘 |
 | 1.4.0 | 2026-07-16 | 新增基金前十大重仓股：`GET /api/v1/funds/{code}/holdings` |
 | 1.3.0 | 2026-07-16 | 基金查询增加场内/场外标识（`market` / `listing_type`） |

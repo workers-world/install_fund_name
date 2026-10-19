@@ -13,16 +13,19 @@ from holdings import (
     fetch_top_holdings,
 )
 from lookup import InstrumentType, lookup_record, normalize_code
+from nav_history import register_nav_history_routes
 from trade_calendar import is_trading_day, list_trading_days, normalize_date
 
 app = FastAPI(
     title="标的代码查询服务",
-    description="根据 A 股或基金代码查询标的基本信息；支持基金重仓股与 A 股交易日判断",
-    version="1.4.0",
+    description="根据 A 股或基金代码查询标的基本信息；支持基金重仓股、单位净值历史与 A 股交易日判断",
+    version="1.6.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
 )
+
+register_nav_history_routes(app)
 
 
 class ApiResponse(BaseModel):
