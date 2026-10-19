@@ -4,7 +4,7 @@
   "version": "0.5.0",
   "description": "A-share / fund code lookup HTTP service (akshare + FastAPI)",
   "scripts": {
-    "check": "python3 -m py_compile app.py lookup.py holdings.py trade_calendar.py nav_history.py scripts/refresh_cache.py scripts/refresh_fund_holdings.py test_holdings_live_on_miss.py test_nav_history.py",
-    "test": "sh -c 'PY=${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}; PY=${PY:-.venv/bin/python}; [ -x \"$PY\" ] || PY=python3; \"$PY\" -m unittest test_holdings_live_on_miss.py test_nav_history.py -v'"
+    "check": "python3 -m py_compile app.py lookup.py holdings.py trade_calendar.py nav_history.py reverse.py scripts/refresh_cache.py scripts/refresh_fund_holdings.py test_holdings_live_on_miss.py test_nav_history.py test_reverse.py",
+    "test": "sh -c 'PY=${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}; PY=${PY:-.venv/bin/python}; [ -x \"$PY\" ] || PY=python3; \"$PY\" -m unittest test_holdings_live_on_miss.py test_nav_history.py test_reverse.py -v'"
   }
 }
