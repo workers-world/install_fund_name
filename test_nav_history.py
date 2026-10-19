@@ -66,6 +66,18 @@ class NavHistoryTests(unittest.TestCase):
         get_nav_history("015692", "1y", today=date(2026, 10, 16), fetcher=fetch, now_sec=1001)
         self.assertEqual(calls["n"], 1)
 
+    def test_otc_style_fund_codes_accepted(self) -> None:
+        """形似 A 股代码的场外基金（如 000041 / 004243）仍按 6 位基金代码处理。"""
+        for fund_code in ("000041", "004243"):
+            payload = get_nav_history(
+                fund_code,
+                "1y",
+                today=date(2026, 10, 16),
+                fetcher=lambda _c: _rows(),
+            )
+            self.assertEqual(payload["code"], fund_code)
+            self.assertTrue(payload["points"])
+
     def test_em_frame_columns(self) -> None:
         class Frame:
             columns = ["净值日期", "单位净值", "日增长率"]

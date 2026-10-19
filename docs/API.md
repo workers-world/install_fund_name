@@ -327,6 +327,22 @@ curl -s "http://127.0.0.1:8000/api/v1/funds/015692/nav-history?range=1y"
 
 ---
 
+### 4.2 反向查询持有某 A 股的基金
+
+```
+GET /api/v1/reverse/funds?stock={stock}
+```
+
+按 **A 股代码** 查询披露持有该股的基金列表（新浪财经-基金持股）。`stock` 支持 `600519`、`sh600519` 等格式，服务端标准化为 6 位数字。进程内缓存 15 分钟。
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/reverse/funds?stock=600519"
+```
+
+成功时 `data` 含 `stock_code`、`stock_name`、`as_of_date`（结果中最晚截止日期）及 `funds` 数组（`fund_code`、`fund_name`、`weight` 等）。A 股不在本地 `stock_codes.json` 中 HTTP 404；非法代码 HTTP 422；上游异常 HTTP 502。
+
+---
+
 ### 5. 判断是否为 A 股交易日
 
 ```
@@ -465,6 +481,7 @@ HTTP 422：
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.7.0 | 2026-10-19 | 新增反向基金查询：`GET /api/v1/reverse/funds` |
 | 1.6.0 | 2026-10-19 | 新增基金单位净值历史：`GET /api/v1/funds/{code}/nav-history` |
 | 1.5.0 | 2026-10-12 | 重仓支持 `HOLDINGS_LIVE_ON_MISS`：CACHE_ONLY 下 miss 可按需 akshare 写盘 |
 | 1.4.0 | 2026-07-16 | 新增基金前十大重仓股：`GET /api/v1/funds/{code}/holdings` |
