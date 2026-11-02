@@ -29,6 +29,45 @@ docker compose logs -f api # 查看日志
 docker compose down        # 停止并移除容器
 ```
 
+### macOS Docker Desktop（R2 离线镜像）
+
+GHCR 包为组织私有，本机若无法 `docker pull ghcr.io/workers-world/install_fund_name`，可使用 CI 同步到 R2 的 **`docker save` gzip 包**（Linux 容器镜像，非 darwin 内核镜像）。
+
+| 项目 | 说明 |
+|------|------|
+| 架构 | **linux/amd64**（与 GHCR 发布一致）；Apple Silicon 上 Docker Desktop 会通过 **amd64 模拟**运行 |
+| R2 对象前缀 | `containers/install_fund_name/`（若仓库配置了 `WW_ARTIFACTS_R2_KEY_PREFIX`，则在其下） |
+| 常用对象 | `install_fund_name-latest.tar.gz`、`install_fund_name-sha-<commit>.tar.gz` 及同名 `.sha256` |
+| v1 下载方式 | **Cloudflare R2 Dashboard** 中打开 `WW_ARTIFACTS_R2_BUCKET`，定位上述对象并下载（本票不要求 Access HTTPS 客户端） |
+
+**1. 下载并校验（示例）**
+
+```bash
+# 将 OBJECT_KEY 换成 Dashboard 中看到的完整键，例如 containers/install_fund_name/install_fund_name-latest.tar.gz
+sha256sum -c install_fund_name-latest.tar.gz.sha256
+```
+
+**2. 载入镜像**
+
+```bash
+gunzip -c install_fund_name-latest.tar.gz | docker load
+# 或：docker load -i <(gunzip -c install_fund_name-latest.tar.gz)
+```
+
+**3. 启动（宿主机端口 8001）**
+
+在仓库根目录准备好 `data/` 缓存（见下文「缓存与离线数据」），然后：
+
+```bash
+# 使用刚 load 的 GHCR 标签，避免本地 rebuild
+docker compose up -d --no-build
+curl -sS http://127.0.0.1:8001/health
+```
+
+`docker-compose.yml` 将 **8001→8000** 映射到容器内 API；`/health` 返回 200 即表示服务就绪。
+
+推送 GHCR 成功后，工作流 [Sync image to R2](../.github/workflows/sync-image-to-r2.yml) 会自动上传；也可在 Actions 中手动 **workflow_dispatch** 补传。
+
 ### 本地开发
 
 ```bash

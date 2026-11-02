@@ -1,0 +1,9 @@
+{
+  "name": "install-fund-name-github-scripts",
+  "private": true,
+  "description": "CI-only deps for .github/scripts (R2 image sync). Installed with npm install --prefix .github/scripts.",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.758.0"
+  }
+}

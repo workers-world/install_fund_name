@@ -1,0 +1,80 @@
+# GHCR 推送成功后，将可 docker load 的 gzip 包同步到 R2（与 build-image 解耦，对齐 ww / framework_sdk_cli）。
+name: Sync image to R2
+
+on:
+  workflow_run:
+    workflows: [Build and Push Image]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: Full commit SHA (must match GHCR :sha-<sha> tag)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  sync-to-r2:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event != 'pull_request')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve Git SHA
+        id: coords
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            sha="${{ inputs.git_sha }}"
+            if [ -z "$sha" ]; then
+              sha="${{ github.sha }}"
+            fi
+          else
+            sha="${{ github.event.workflow_run.head_sha }}"
+          fi
+          if [ ${#sha} -lt 40 ]; then
+            echo "::error::Need full 40-char commit SHA (got: ${sha})"
+            exit 1
+          fi
+          echo "git_sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install R2 client
+        run: |
+          set -euo pipefail
+          npm install --prefix .github/scripts --no-package-lock
+
+      - name: Sync docker save tarball to R2
+        env:
+          IMAGE: ghcr.io/workers-world/install_fund_name
+          GIT_SHA: ${{ steps.coords.outputs.git_sha }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.WW_ARTIFACTS_R2_BUCKET }}
+          R2_KEY_PREFIX: ${{ vars.WW_ARTIFACTS_R2_KEY_PREFIX }}
+        run: |
+          set -euo pipefail
+          if [ -z "${R2_BUCKET:-}" ]; then
+            echo "::error::WW_ARTIFACTS_R2_BUCKET repo variable is not set"
+            exit 1
+          fi
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Secret ${name} is not set"
+              exit 1
+            fi
+          done
+          node .github/scripts/sync-image-to-r2.mjs

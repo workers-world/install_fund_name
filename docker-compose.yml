@@ -1,6 +1,7 @@
 services:
   api:
     build: .
+    image: ghcr.io/workers-world/install_fund_name:latest
     container_name: instrument-lookup-api
     ports:
       - "8001:8000"
